@@ -1,0 +1,60 @@
+version: '3.8'
+# You have to create secrets that contains all those values:
+secrets:
+  django_key:
+    external: true
+  jwt_key:
+    external: true
+  mysql_db:
+    external: true
+  mysql_user:
+    external: true
+  mysql_password:
+    external: true
+  mysql_root_password:
+    external: true
+
+services:
+  admin_api:
+    image: django_admin  # Replace with the name of your Django API image
+    depends_on:
+      - admin_db
+    environment:
+      - SECRET_KEY=/run/secrets/django_key
+      - JWT_SECRET=/run/secrets/jwt_key
+      - MYSQL_DATABASE=/run/secrets/mysql_db
+      - MYSQL_USER=/run/secrets/mysql_user
+      - MYSQL_PASSWORD=/run/secrets/mysql_password
+      - MYSQL_ROOT_PASSWORD=/run/secrets/mysql_root_password
+    secrets:
+      - django_key
+      - jwt_key
+      - mysql_db
+      - mysql_user
+      - mysql_password
+      - mysql_root_password
+    volumes:
+      - .:/app
+    ports:
+      - 8000:8000
+
+  admin_db:
+    image: mysql
+    environment:
+      - MYSQL_DATABASE_FILE=/run/secrets/mysql_db
+      - MYSQL_USER_FILE=/run/secrets/mysql_user
+      - MYSQL_PASSWORD_FILE=/run/secrets/mysql_password
+      - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/mysql_root_password  
+    secrets:
+      - mysql_db
+      - mysql_user
+      - mysql_password
+      - mysql_root_password
+    volumes:
+      - .dbdata:/var/lib/mysql
+    ports:
+      - 33066:3306
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
