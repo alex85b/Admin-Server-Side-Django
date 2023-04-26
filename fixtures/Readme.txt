@@ -19,5 +19,7 @@ python manage.py loaddata fixtures/users.json
 
 ^ password = password.
 
+5:
+python manage.py loaddata fixtures/orders.json
 
-those 3 files, should cover my modest needs in this project.
+those 4 files, should cover my modest needs in this project.

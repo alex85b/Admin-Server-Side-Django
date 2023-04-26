@@ -16,7 +16,12 @@ urlpatterns = [
     })),
     path('roles/<str:pk>', views.RoleViewSet.as_view({
         'get': 'retrieve', 'put': 'update', 'delete': 'destroy'
-    })),  # Done with RolesViewSet.
+    })),  # End of RolesViewSet path's.
+
     path('users', views.UserGenericAPIView.as_view()),
+    path('users/info', views.ProfileInfoAPIView.as_view()),
+    path('users/password', views.ProfilePasswordAPIView.as_view()),
+    # this is the most general so it has to be last!
     path('users/<str:pk>', views.UserGenericAPIView.as_view()),
+
 ]

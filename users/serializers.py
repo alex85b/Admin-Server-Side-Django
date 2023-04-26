@@ -8,11 +8,29 @@ from .models import Users, Permission, Role
 ##  User Serializer ########################################################################
 ############################################################################################
 
+class RoleRelatedField(serializers.RelatedField):
+
+    # from Users model outwards
+    def to_representation(self, instance):
+        # print('LOG: RoleRelatedField --> to_representation')
+        return RoleSerializer(instance).data
+
+    # into Users model
+    def to_internal_value(self, data):
+        # print('LOG: RoleRelatedField --> to_internal_value')
+        query_result = self.queryset
+        if query_result is not None:
+            return query_result.get(pk=data)
+
+        raise exceptions.APIException("Element does not exists")
+
 
 class UserSerializer(serializers.ModelSerializer):
+    role = RoleRelatedField(many=False, queryset=Role.objects.all())
+
     class Meta:
         model = Users
-        fields = ['id', 'first_name', 'last_name', 'email', 'password']
+        fields = ['id', 'first_name', 'last_name', 'email', 'password', 'role']
 
         # make that serializers can't return a password!
         extra_kwargs = {
@@ -42,6 +60,18 @@ class UserSerializer(serializers.ModelSerializer):
         # the result of the crete method.
         print('LOG: ended UserSerializer::create')
         return instance
+
+    # override default update method.
+    # this will be called whenever the outside user, uses the .save() method.
+    def update(self, model_instance, validated_data):
+
+        password = validated_data.pop('password', None)
+
+        if password is not None:
+            model_instance.set_password(password)
+        model_instance.save()
+
+        return super(UserSerializer, self).update(model_instance, validated_data)
 
 ############################################################################################
 ##  Permission Serializer ##################################################################
@@ -101,8 +131,6 @@ class RoleSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
 
         permissions = validated_data.pop('permissions', None)
-        print('LOG: RoleSerializer -> create: permissions before unpacking= ', permissions)
-        print('LOG: RoleSerializer -> create: permissions after unpacking= ', *permissions)
         # the '**' should create a dictionary out of the validated_data object
         # instance <-- go to self, find the connection to Users, that held inside model
         #   then prepare to save to db the content of validated_data, but without the 'permissions'

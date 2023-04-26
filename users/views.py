@@ -10,18 +10,22 @@ from .models import Users, Permission, Role
 from .serializers import UserSerializer, PermissionSerializer, RoleSerializer
 from .authentication import JWTAuthentication, generate_access_token
 from admin.pagination import CustomPagination
+from .permissions import ViewPermissions
 
 # Views on this .py will enables endpoint users to:
 # Register new user into the DB.
 # Login a user and jet a JWT cookie.
 # Display all known users.
-# logout a user: endpoint user looses the JWT cookie.
+# Display specific user.
+# Update specific user.
+# Delete specific user.
+# Logout a user: endpoint user looses the JWT cookie.
 # Display all existing permissions.
-# display all existing roles.
-# display specific role.
-# create specific role.
-# update specific role.
-# delete specific role.
+# Display all existing roles.
+# Display specific role.
+# Create specific role.
+# Update specific role.
+# Delete specific role.
 
 
 ############################################################################################
@@ -119,13 +123,15 @@ class AuthenticatedUser(APIView):
     authentication_classes = [JWTAuthentication]
 
     # uses existing, pre-made 'service' of the rest_framework
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated & ViewPermissions]
+    permission_object = 'users'  # <-- route access.
 
     def get(self, request):
-        serializer = UserSerializer(request.user)
+        data = UserSerializer(request.user).data
+        data['permissions'] = [p['name'] for p in data['role']['permissions']]
 
         return Response({
-            'data': serializer.data
+            'data': data
         })
 
 
@@ -178,7 +184,8 @@ class RoleViewSet(viewsets.ViewSet):
     authentication_classes = [JWTAuthentication]
 
     # uses existing, pre-made 'service' of the rest_framework
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated & ViewPermissions]
+    permission_object = 'roles'  # <-- a permission from users_permissions table
 
     # get a list of objects
     def list(self, request):
@@ -208,7 +215,6 @@ class RoleViewSet(viewsets.ViewSet):
         raise exceptions.APIException("pk doesn't exists")
 
     # update record
-
     def update(self, request, pk=None):
         role = Role.objects.filter(id=pk).first()
         if role is not None:
@@ -236,6 +242,10 @@ class RoleViewSet(viewsets.ViewSet):
 ##  Users  #################################################################################
 ############################################################################################
 
+# TODO: The password management here is lazy and illogical, but
+# This is what the Udemy instructor implemented.
+# change this later!
+
 class UserGenericAPIView(
         GenericAPIView,
         mixins.ListModelMixin,
@@ -246,7 +256,9 @@ class UserGenericAPIView(
 
     # setup:
     authentication_classes = [JWTAuthentication]  # <-- is user authenticated.
-    permission_classes = [IsAuthenticated]  # <-- does user have permissions.
+    # <-- does user have permissions.
+    permission_classes = [IsAuthenticated & ViewPermissions]
+    permission_object = 'users'  # <-- a permission from users_permissions table
     pagination_class = CustomPagination
 
     # link to the DB, map all users to this object.
@@ -265,14 +277,35 @@ class UserGenericAPIView(
                 'data': self.retrieve(request, pk).data
             })
 
-        # from the 'ListModelMixin'
-        # return a list using the whole queryset.
-        # return Response({
-        #     'data': self.list(request).data
-        # })
         return self.list(request)
 
     def post(self, request):
+
+        # Front-end sends: {
+        #     "first_name": ?
+        #     , "last_name": ?
+        #     , "email": ?
+        #     , "role_id": ?
+        # }
+
+        # I want to add pre-made password and role (not only the id).
+        request.data.update({
+
+            # Initial password, i should force users to change it upon login.
+            'password': 1234,
+
+            # TODO: rename Users.role to Users.role_id, explanation:
+            # there is a Users model with a field poorly named as 'role', also
+            # There is a Roles model that consist of {id, name, permissions}.
+            # that presents a challenge:
+            #   if user passes me a 'role' it seems as if he passes a Role object!
+            #   But, i want the user to pass me a role-id, because that is the value i need for Users.role
+            #   so i ask frontend to give me role_id then
+            #       i do some switcheroo, i add the correct key which is role.
+            # this is avoidable - i need to rename Users.role to Users.role_id
+            'role': request.data['role_id']
+        })
+
         return Response({
             # from the 'CreateModelMixin'
             # return a result after creating a new entry into the queryset.
@@ -282,12 +315,71 @@ class UserGenericAPIView(
     def put(self, request, pk=None):
         # from the 'UpdateModelMixin'
         # return a result after updating a specific pk in the queryset.
-        return Response({
-            'data': self.update(request, pk).data
-        })
+        print('UserGenericAPIView --> put --> request = ', request.data)
+        if pk:
+            request.data.update({
+                'password': 1234,
+                'role': request.data['role_id']
+            })
+
+            return Response({
+                'data': self.update(request, pk).data
+            })
+
+        raise exceptions.APIException('can not update without pk')
 
     def delete(self, request, pk=None):
         # from the 'DestroyModelMixin'
         # delete a specific pk in the queryset.
         self.destroy(request, pk).data
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+############################################################################################
+##  Profile  ###############################################################################
+############################################################################################
+
+# Updates the user that have logged in !
+# if 'momo' had logged in ? this will act upon momo and momo alone!
+
+#######################
+## Update Info  #######
+#######################
+
+
+class ProfileInfoAPIView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated & ViewPermissions]
+    permission_object = 'users'  # <-- a permission from users_permissions table
+
+    def put(self, request, pk=None):
+        user = request.user
+        serializer = UserSerializer(user, request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
+#######################
+## Update Password  ###
+#######################
+
+
+class ProfilePasswordAPIView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated & ViewPermissions]
+    permission_object = 'users'  # <-- a permission from users_permissions table
+
+    def put(self, request, pk=None):
+        user = request.user
+
+        if 'password' not in request.data or 'password_confirm' not in request.data:
+            raise exceptions.ValidationError(
+                'Password or password_confirm were not provided')
+
+        if request.data['password'] != request.data['password_confirm']:
+            raise exceptions.ValidationError('Passwords do not match')
+
+        serializer = UserSerializer(user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
