@@ -1,4 +1,4 @@
-Admin Server-Side
+# Admin Server-Side
 Welcome to the server-side of my "Admin app" project.
 This repository is part of my "learn by doing" approach to mastering Django,
 React, and eventually developing microservices.
