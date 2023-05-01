@@ -1,7 +1,14 @@
-# Shop-admin (backend)
+Admin Server-Side
+Welcome to the server-side of my "Admin app" project.
+This repository is part of my "learn by doing" approach to mastering Django,
+React, and eventually developing microservices.
 
-As I delve into learning Django, React, and Docker,
-I am following an older Udemy course available at https://www.udemy.com/course/react-django-admin,
-which is about three years old. Consequently, significant modifications are necessary for the code.
+I have been following an older Udemy course, available at https://www.udemy.com/course/react-django-admin, that is about three years old.
+As a result, I had to make significant modifications to the code to get it to work.
+However, this course is an essential stepping stone to my next objective of learning how to develop microservices with Django and Python.
 
-This project will involve the creation of multiple containers using Docker Compose to host a Django web application, S MySQL database, and a React frontend. The rest_framework will also be utilized, and Docker's secrets will be used to set environment variables. Given that the code is outdated, substantial changes are needed to ensure compatibility with the latest versions of the technologies being used.
+In this application, I will be creating a containerized Django application connected to a containerized MySQL server.
+All the necessary passwords and ports will be passed as Docker secrets for secure communication between the containers.
+The Django application will use the Django REST framework to provide RESTful services,
+allowing users to create, delete, and edit new products and users.
+Later, I will connect this application to a React frontend (Admin client-side React) to create a full-fledged web application.
